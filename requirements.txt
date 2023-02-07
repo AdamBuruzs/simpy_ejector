@@ -1,0 +1,6 @@
+ctREFPROP
+numpy
+pandas
+matplotlib
+scipy
+seaborn

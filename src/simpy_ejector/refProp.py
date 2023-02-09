@@ -87,6 +87,7 @@ def getTD(RP, hm=100.0, P=100.0, debug=False):
 
 def getDh_from_TP(RP, T, p):
     ''' get Density and specific enthalpy [kJ/kg] from Temperature and pressure
+    :param T: temperature in Kelvin
     :param p: pressure in kPa!
     :return : [Density in kg/m^3, spec enthalpy in kJ/kg]
     '''

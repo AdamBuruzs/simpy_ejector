@@ -53,7 +53,7 @@ def setup(material="BUTANE"):
     RP.SETPATHdll(os.environ['RPPREFIX'])
     # print(RP.RPVersion())
     r = RP.SETUPdll(1, material + ".FLD", "HMX.BNC", "DEF")
-    assert (r.ierr == 0)
+    assert r.ierr == 0, r.herr
     return RP
 
 

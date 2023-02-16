@@ -63,7 +63,14 @@ class ejectorSimu:
         """
         self.params = params
         self.fluid =  fluid
+        self.RP = refProp.setup(self.fluid)
         self.makeEjectorGeom(params)
+        if not 'hprim' in params.keys():
+            Dprim, hp = refProp.getDh_from_TP(self.RP, params['Tprim'], params['Pprim'])
+            params['hprim'] = hp
+        if not 'hsuc' in params.keys():
+            Dsuc, hs = refProp.getDh_from_TP(self.RP, params['Tsuc'], params['Psuc'])
+            params['hsuc'] = hs
 
     def makeEjectorGeom(self, params):
         """ create the ejector geometry.
@@ -97,7 +104,6 @@ class ejectorSimu:
         # ejectorPlot = ejector.draw()
         self.ejector = ejector
         ### set up the nozzle solver:
-        self.RP = refProp.setup(self.fluid)
         [Din, hin] = refProp.getDh_from_TP(self.RP, self.params['Tprim'], self.params['Pprim'])
         self.nsolver = nozzleSolver.NozzleSolver(nozzle, self.fluid, 1, solver="AdamAdaptive", mode="basic")
         self.nsolver.setFriction(1e-2)

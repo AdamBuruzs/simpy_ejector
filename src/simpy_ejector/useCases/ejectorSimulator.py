@@ -38,7 +38,7 @@ t0 = time()
 
 class ejectorSimu:
 
-    def __init__(self, params, fluid = "R1233zd" ):
+    def __init__(self, params, fluid = "R1233zde" ):
         """ ejector simulator object
 
         :param fluid: fluid name from refprop see https://pages.nist.gov/REFPROP-docs/#list-of-fluids
@@ -71,6 +71,7 @@ class ejectorSimu:
         if not 'hsuc' in params.keys():
             Dsuc, hs = refProp.getDh_from_TP(self.RP, params['Tsuc'], params['Psuc'])
             params['hsuc'] = hs
+        self.dv_kick = 2.0
 
     def makeEjectorGeom(self, params):
         """ create the ejector geometry.
@@ -146,13 +147,27 @@ class ejectorSimu:
         v = vph_throat["v"]
         p = vph_throat["p"]
         h = vph_throat["h"]
-        dv_kick = 2.0 ## [m/s] increase this value, if the flow does not switch to supersonic after the throat
-        dp_kick = self.nsolver.pFromV_MassConst(v = vph_throat["v"], dv = dv_kick, p = vph_throat["p"], h = vph_throat["h"])
-        logging.info(f"mass conserving artificial kick: dv = {dv_kick} m/s, dp = {dp_kick} kPa")
-        res_crit = self.nsolver.solveKickedNozzle(self.params["vin_crit"], self.params["Pprim"], self.params["hprim"], kicks = {'v': dv_kick, 'p': -dp_kick},
+        #dv_kick = 2.0 ## [m/s] increase this value, if the flow does not switch to supersonic after the throat
+        dp_kick = self.nsolver.pFromV_MassConst(v = vph_throat["v"], dv = self.dv_kick, p = vph_throat["p"], h = vph_throat["h"])
+        logging.info(f"mass conserving artificial kick: dv = {self.dv_kick} m/s, dp = {dp_kick} kPa")
+        res_crit = self.nsolver.solveKickedNozzle(self.params["vin_crit"], self.params["Pprim"], self.params["hprim"], kicks = {'v': self.dv_kick, 'p': -dp_kick},
                                              solver= "adaptive_implicit", step0 = 0.001, maxStep = 0.005)
+        if res_crit.iloc[-1]['v'] < sol_1.iloc[-1]['v']: # the flow did not became supersonic
+            logging.info("velocity kick was too low, increasing it and try again")
+            for ii in range(20):
+                self.dv_kick = self.dv_kick +1
+                dp_kick = self.nsolver.pFromV_MassConst(v=vph_throat["v"], dv=self.dv_kick, p=vph_throat["p"],
+                                                        h=vph_throat["h"])
+                logging.info(f"new guess for mass conserving artificial kick: dv = {self.dv_kick} m/s, dp = {dp_kick} kPa")
+                res_crit = self.nsolver.solveKickedNozzle(self.params["vin_crit"], self.params["Pprim"],
+                                                          self.params["hprim"], kicks={'v': self.dv_kick, 'p': -dp_kick},
+                                                          solver="adaptive_implicit", step0=0.001, maxStep=0.005)
+                logging.info(f"speed throat {sol_1.iloc[-1]['v']:.2f}, outlet {res_crit.iloc[-1]['v']:.2f}")
+                if (res_crit.iloc[-1]['v'] > sol_1.iloc[-1]['v']):
+                    break
         logging.info(f"throat by {self.nsolver.nozzle.xt}")
-        self.nsolver.plotsol(res_crit, title = f"choked nozzle with friction = {self.nsolver.frictionCoef}.\n with artifical kick by throat with {dv_kick} m/sec ")
+        self.nsolver.plotsol(res_crit, title = f"choked nozzle with friction = {self.nsolver.frictionCoef}.\n "
+                                               f"with artifical kick by throat with {self.dv_kick} m/sec ")
         logging.info(res_crit.tail(1))
         self.primNozzleFlow = res_crit
         return res_crit

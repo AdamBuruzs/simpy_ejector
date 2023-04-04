@@ -101,7 +101,7 @@ def get_from_PS(RP, p , s):
     """Get quantities from pressure and specific etropy
 
     :param RP:
-    :param p:
+    :param p: pressure in [kPa]
     :param s: specific entropy [kJ/kg/K]
     :return: dict with "T" : Temp [K], "D": density [kg/m^3] , "h" : spec enthalpy [kJ/kg]
     """
@@ -110,7 +110,7 @@ def get_from_PS(RP, p , s):
     res = RP.PSFLSHdll(p, smol, [1.0])
     density = res.D * MM
     hmass = res.h / MM
-    print(' h = {}'.format(res.h))
+    #print(' h = {}'.format(res.h))
     return {"T": res.T, "D": density, "h": hmass }
 
 def getTransport(RP, T,D):

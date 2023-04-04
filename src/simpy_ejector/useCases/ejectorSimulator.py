@@ -172,6 +172,19 @@ class ejectorSimu:
         self.primNozzleFlow = res_crit
         return res_crit
 
+    def setupMixer(self):
+        """ just set up the mixer for the calculations, you can still modify the mixer calculation parameters"""
+        mixingParams = self.params["mixingParams"]
+        self.mixer = EjectorMixer.EjectorMixer(self.fluid, self.ejector, mixingParams)
+        self.mixer.setSuctionMassFlow(None)
+        self.mixer.setSingleChoke(True)
+        # self.mixer.ejector.Asi = 2 * 1.1 ** 2 * math.pi  # cm2 of the suction nozzle inlet.
+        self.mixer.ejector.Asi = self.params["A_suction_inlet"]
+
+    def solvePremix(self, res_crit):
+        """ just solving the pre-mix equations for secondary mass flow rate"""
+        self.mixerin = self.mixer.premixWrapSolve(res_crit, self.params["Psuc"], self.params["Tsuc"])
+
     def premix(self, res_crit):
         """ solving the premix equations. this will calculate the secondary mass flow rate"""
         mixingParams = self.params["mixingParams"]

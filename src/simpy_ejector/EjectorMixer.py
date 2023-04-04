@@ -42,6 +42,9 @@ class EjectorMixer(FlowSolver) :
         self.singleChoke = True
         self.momCalcType = 0 # there will be 3 types of momentum equation implemented to calculate the suction mass flow.
         self.Nint = 10 # number of integration intervals, only used if momCalcType == 2
+        self.premixEqSimple = False
+        self.premixRootMethod = "lm" # the root finder method for the suction mass flow rate calculations.
+        # see https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.root.html
         ## set the momCalcType externally to test other versions (this is used to check suction mass flow sensitivity to the momentum equation)
 
     def setSuctionMassFlow(self, massFlowSecond):
@@ -177,7 +180,8 @@ class EjectorMixer(FlowSolver) :
         # TODO: check dimensions
         RP = self.RP # Nist Refprop object
         # [massFlowPrim, ho, vo, so, hst, sst, Am] = parameters
-        [py, vpy, hpy, Dpy, Apy, vsy, hsy, Dsy, Asy, massFlowSecond ] = variables
+        [py, vpy, hpy, Dpy, Apy, vsy, hsy, Dsy, massFlowSecond ] = variables
+        Asy = pars['Am'] - Apy # [cm^2] the cross section of the secondary flow
         massp = pars['massFlowPrim'] - Dpy * vpy * Apy / 10.0  # [ g/s] Apy in cm^2
         enp = pars['ho'] + math.pow(pars['vo'], 2.0) / 2.0 * 1e-3 - hpy - math.pow(vpy, 2.0) / 2.0 * 1e-3  # kJ/kg enthalpy primary
         dp = Dpy - refProp.getTD(RP, hpy, py)['D'] # density primary at Y
@@ -189,7 +193,7 @@ class EjectorMixer(FlowSolver) :
             ens = pars['hsi'] + (Dsy * Asy * vsy / pars['Dsi'] / pars['Asi'])** 2.0 / 2.0 * 1.e-3 - hsy - math.pow(vsy, 2.0) / 2.0 * 1e-3  # kJ/kg enthalpy suction flow at Y
         ds = Dsy - refProp.getTD(RP, hsy, py)['D']
         Ss = pars['sst'] - refProp.getTD(RP, hsy, py)['s'] # entropy suction flow
-        dA = pars['Am'] - Asy - Apy # [cm^2] the cross section are equation
+        # dA = pars['Am'] - Asy - Apy # [cm^2] the cross section are equation
         ## No condition for the suction speed by y, no choking occurs.
         ## dc = vsy - refProp.getSpeedSound(RP, hsy, py) # [m/s]
         if self.momCalcType== 0:
@@ -206,7 +210,73 @@ class EjectorMixer(FlowSolver) :
             dMomS0 = 0.5 * (1.0 - (Dsy * Asy  / pars['Dsi'] / pars['Asi'])** 2.0 ) * vsy ** 2.0 - \
                      self.densinv_Int(py, Dsy, hsy, N= self.Nint, pars = pars) * 1000.0 # p is in kPa
             dMomS = dMomS0 * 20.0
-        deviations = [massp, enp, dp, Sp, masssec, ens, ds, Ss, dA, dMomS]
+        deviations = [massp, enp, dp, Sp, masssec, ens, ds, Ss, dMomS]
+        return deviations
+
+    def premix2vEquationsSCMom(self, pars: dict,
+                        variables ):
+        """| System of equations to be solved for the pre-mixing part of the Ejector
+        | a version with only 2 free variables to be determined: pressure_Y and secondary mass flow rate
+        | Assumed a single choking i.e. only the motive/primary flow is choked, but the suction flow is not choked
+        an approximation of the momentum equation is used additionaly, so that the mass flow rate is also calculated
+
+        SCMom: Single Choking with Momentum equation
+        params['sp'] - primary flow specific entropy
+
+        | massFlowPrim: primary mass flow rate
+        | ho: motive nozzle output pressure
+        | vo: motive nozzle output velocity
+        | so: motive nozzle output specific entropy = sp
+        | hsi: suction inlet specific enthalpy [kJ/kg]
+        | sst: suction stagnation specific entropy
+        | Am: mixer cross section area [cm^2]
+        | py: pressure at the hypothetical throat
+        | vpy: primary flow speed at the hypothetical throat
+        | hpy: primary flow spec enthalpy at the hypothetical throat
+        | Dpy: primary flow density at the hypothetical throat
+        | Apy: primary flow cross section area at the hypothetical throat [cm^2]
+        | vsy: scondary flow speed at the hypothetical throat
+        | hsy: secondary specific enthalpy
+        | Dsy: suction flow density
+        | Asy: secondary flow cross section area at the hypothetical throat [cm^2]
+        | massFlowSecond: secondary mass flow rate
+        :return: a vector of size 2 that should be solved for root: secondary energy, and momentum equations
+        """
+        RP = self.RP # Nist Refprop object
+        # [massFlowPrim, ho, vo, so, hst, sst, Am] = parameters
+        # [py, vpy, hpy, Dpy, Apy, vsy, hsy, Dsy, massFlowSecond ] = variables
+        [py, massFlowSecond] = variables
+        prim_Y = refProp.get_from_PS(RP, py , pars['sp']) # motive nozzle at Y cross section
+        hpy = prim_Y["h"]
+        Dpy = prim_Y["D"]
+        sec_Y = refProp.get_from_PS(RP, py , pars['sst']) #suction nozzle
+        Dsy = sec_Y["D"]
+        hsy = sec_Y["h"]
+        ##from the energy equation:
+        vpy =  (2* 1e3 * (pars['ho'] - hpy + math.pow(pars['vo'], 2.0) / 2.0 * 1e-3))**0.5
+        ## mass conservation:
+        Apy = pars['massFlowPrim']*10.0 / Dpy /vpy
+        Asy = pars['Am'] - Apy # [cm^2] the cross section of the secondary flow
+        ## mass conservation secondary
+        vsy = massFlowSecond * 10.0 / Dsy / Asy # 10.0 factor : massflowSecond is in [ g/s], Asy is in cm^2
+        ## Energy equation:
+        ens = pars['hsi'] + (Dsy * Asy * vsy / pars['Dsi'] / pars['Asi']) ** 2.0 / 2.0 * 1.e-3 - hsy - math.pow(vsy, 2.0) / 2.0 * 1e-3  # kJ/kg enthalpy suction flow at Y
+        if self.momCalcType== 0:
+            # the original momentum equation for the suction flow
+            dMomS = 0.5 * (pars['Dsi'] * pars['Asi'] + Dsy * Asy) * \
+                    (1.0 - (Dsy * Asy  / pars['Dsi'] / pars['Asi'])** 2.0 ) * vsy ** 2.0 - \
+                    (pars['Asi'] + Asy) * (pars['psi'] - py) * 1000.0 # p is in kPa
+        elif self.momCalcType== 1:
+            ## other version of the momentum equation for the suction flow
+            dMomS = 0.25 * (pars['Dsi']  + Dsy ) * \
+                    (1.0 - (Dsy * Asy  / pars['Dsi'] / pars['Asi'])** 2.0 ) * vsy ** 2.0 - \
+                    (pars['psi'] - py) * 1000.0 # p is in kPa
+            dMomS = dMomS
+        elif self.momCalcType== 2: ## the correctness of this integral calculation is still not verified
+            dMomS0 = 0.5 * (1.0 - (Dsy * Asy  / pars['Dsi'] / pars['Asi'])** 2.0 ) * vsy ** 2.0 - \
+                     self.densinv_Int(py, Dsy, hsy, N= self.Nint, pars = pars) * 1000.0 # p is in kPa
+            dMomS = dMomS0 * 20.0
+        deviations = [ens, dMomS]
         return deviations
 
     def densinv_Int(self, py, Dsy, hsy, N:int, pars):
@@ -292,6 +362,7 @@ class EjectorMixer(FlowSolver) :
         #[massFlowPrim, ho, vo, so, hst, sst, Am] = params
         #[massFlowPrim, ho, vo, so, ps,Ts, Am, Asi] = params
         [Dsi, hsi] = refProp.getDh_from_TP(self.RP, params['Tsi'], params['psi'])
+        params["sp"] = params["so"]
         params["Dsi"] = Dsi
         params["hsi"] = hsi
         params["hst"] = hsi # if inlet speed is low, the stagnation enthlpy is approximated by the inlet enthalpy
@@ -300,21 +371,27 @@ class EjectorMixer(FlowSolver) :
         fluido = refProp.getTD(self.RP, params["ho"], po)  # fluid properties by Nozzle exit
         Dinit = fluido['D']
         params['Asi'] = self.ejector.Asi
-        logging.info(f"solving equation in solvePreMixSingleChoke with parameters:\n {params}")
-        eqFun = lambda x: self.premixEquationsSCMom(params, x)
-        # if the inlet it gas, initialize the Dsy with lower density than the secondary inlet,
-        # as it will be compressed. Otherwise it can stuck into constant density solution. This is problematic as the
-        # momentum equation relies on the density integral if momCalcType =2
-        if suctionProps['q'] > 0.99: # suction inlet is gas
-            Dsy_init = suctionProps['D'] + 10.0
+
+        if not self.premixEqSimple:
+            logging.info(f"solving equation for 10 variables in solvePreMixSingleChoke with parameters:\n {params}")
+            eqFun = lambda x: self.premixEquationsSCMom(params, x)
+            # if the inlet it gas, initialize the Dsy with lower density than the secondary inlet,
+            # as it will be compressed. Otherwise it can stuck into constant density solution. This is problematic as the
+            # momentum equation relies on the density integral if momCalcType =2
+            if suctionProps['q'] > 0.99: # suction inlet is gas
+                Dsy_init = suctionProps['D'] + 10.0
+            else:
+                Dsy_init =  suctionProps['D']
+            xinit = [params['psi'] - 10.0, params['vo'], params['ho'], Dinit,
+                     params['Am'] / 2.0, params['vo'] / 2.0, params['ho'], Dsy_init, params['massFlowPrim'] / 2.0]
         else:
-            Dsy_init =  suctionProps['D']
-        xinit = [params['psi'] - 10.0, params['vo'], params['ho'], Dinit,
-                 params['Am'] / 2.0, params['vo'] / 2.0, params['ho'], Dsy_init, params['Am'] / 2.0, params['massFlowPrim'] / 2.0]
+            logging.info(f"solving premix equation for 2 variables in solvePreMixSingleChoke with parameters:\n {params}")
+            eqFun = lambda x: self.premix2vEquationsSCMom(params, x)
+            xinit = [ params['psi'] - 10.0, params['massFlowPrim'] ]
         ## TODO: better initialize the Dsy with the suction inlet density!!!
         solver= "scipy" # "scipy" # "N" # "scipy"
         if solver == "scipy":
-            premix = scipy.optimize.root(eqFun, x0=np.array(xinit), method='lm', tol= 1e-6 )
+            premix = scipy.optimize.root(eqFun, x0=np.array(xinit), method=self.premixRootMethod, tol= 1e-5 )
         else:
             ### try simple Newton solver
             eqFunNumpy = lambda x: np.array(eqFun(x))
@@ -333,7 +410,26 @@ class EjectorMixer(FlowSolver) :
             ##### END test Newton method
         #logging.info(f"the solution quality: {eqFun(premix.x)}")
         # [py, vpy, hpy, Dpy, Apy, vsy, hsy, Dsy, Asy, massFlowSecond] = variables
-        [py, vpy, hpy, Dpy, Apy, vsy, hsy, Dsy, Asy, massFlowSecond] = premix.x
+        if self.premixEqSimple:
+            [py, massFlowSecond] = premix.x
+            prim_Y = refProp.get_from_PS(self.RP, py, params['sp'])  # motive nozzle at Y cross section
+            hpy = prim_Y["h"]
+            Dpy = prim_Y["D"]
+            sec_Y = refProp.get_from_PS(self.RP, py, params['sst'])  # suction nozzle
+            Dsy = sec_Y["D"]
+            hsy = sec_Y["h"]
+            ##from the energy equation:
+            vpy = (2 * 1e3 * (params['ho'] - hpy + math.pow(params['vo'], 2.0) / 2.0 * 1e-3)) ** 0.5
+            ## mass conservation:
+            Apy = params['massFlowPrim'] * 10.0 / Dpy / vpy
+            Asy = params['Am'] - Apy  # [cm^2] the cross section of the secondary flow
+            ## mass conservation secondary
+            vsy = massFlowSecond * 10.0 / Dsy / Asy
+            equation_labels = "[ens, dMomS]"
+        else:
+            [py, vpy, hpy, Dpy, Apy, vsy, hsy, Dsy, massFlowSecond] = premix.x
+            Asy = params['Am'] - Apy
+            equation_labels = "[massp, enp, dp, Sp, masssec, ens, ds, Ss, dMomS]"
         if premix.success == False:
             logging.error(f"{premix.message}\n solvePreMixSingleChoke has not converged, try to change xinit initial values, or the parameters of the scipy.optimize.root")
         else:
@@ -342,9 +438,10 @@ class EjectorMixer(FlowSolver) :
             except:
                 logging.info( f" {premix.message}")
         error_terms = eqFun(premix.x)
+
         logging.info(f" error terms in solving the solvePreMixSingleChoke: \n "
                      f"{error_terms}\n "
-                     f"for the equations: [massp, enp, dp, Sp, masssec, ens, ds, Ss, dA, dMomS]")
+                     f"for the equations: {equation_labels}")
         logging.info(f"Tot premix precision {np.array(error_terms).sum():.4e} momentum equation err = {error_terms[-1]:.4e}")
         resdict = { 'py': py, 'vpy' :vpy, 'hpy': hpy, 'Dpy': Dpy,
                     'Apy': Apy, 'vsy' : vsy, 'hsy': hsy,
@@ -380,9 +477,9 @@ class EjectorMixer(FlowSolver) :
             parameters = { 'Tsi':Tsuc, 'psi': Psuc, 'massFlowPrim': massFlowPrim,
                            'ho': nozzle_out['h'], 'vo' : vo, 'so': so, 'Am':  self.ejector.Am }
             print(parameters)
-            mixres, mixar = self.solvePreMixSingleChoke(parameters, nozzle_out['p'])
+            mixres, mixar = self.solvePreMixSingleChoke(parameters, nozzle_out['p']-10.0)
             logging.info("pre-mix calculations with single choking and suction mass flow rate calculation")
-        else:
+        else: # double choking or fixed given secondary mass flow rate
             parameters = [massFlowPrim, nozzle_out['h'], vo, so, hst, sst, self.ejector.Am]
             # [massFlowPrim, ho, vo, so, hst, sst, Am] = parameters
             print(parameters)

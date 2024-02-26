@@ -192,3 +192,6 @@ Pressure profiles in a nozzle with a simulated shock-wave.
 Pressure profile comparison with experiment (in this case without shock-waves):
 
 ![pressure profiles comparison with experiment](./src/simpy_ejector/charts/PressureExp.png)
+
+## Acknowledgements
+The research leading to this repository was financed by the Austrian Research Promotion Agency (ffg) over the projects [VWE](https://projekte.ffg.at/projekt/3205550), and [ETHP](https://projekte.ffg.at/projekt/4174819)

@@ -25,8 +25,9 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import logging
 import scipy.optimize
-from simpy_ejector import EjectorGeom, numSolvers, refProp
+from simpy_ejector import EjectorGeom, numSolvers # , refProp
 from simpy_ejector.flowSolver import FlowSolver
+from simpy_ejector.matprop_gen import MaterialProperties
 
 class EjectorMixer(FlowSolver) :
 
@@ -86,23 +87,21 @@ class EjectorMixer(FlowSolver) :
         | Dsy:
         | Asy: secondary flow cross section area at the hypothetical throat [cm^2]
         | massFlowSecond: secondary mass flow rate
-        :param RP: Nist Refprop object
         :return: a vector of size 10 that should be solved for root
         """
         # TODO: check dimensions
-        RP = self.RP
         [massFlowPrim, ho, vo, so, hst, sst, Am] = parameters
         [py, vpy, hpy, Dpy, Apy, vsy, hsy, Dsy, Asy, massFlowSecond] = variables
         massp = massFlowPrim - Dpy * vpy * Apy / 10.0  # [ g/s] Apy in cm^2
         enp = ho + math.pow(vo, 2.0) / 2.0 * 1e-3 - hpy - math.pow(vpy, 2.0) / 2.0 * 1e-3  # kJ/kg
-        dp = Dpy - refProp.getTD(RP, hpy, py)['D']
-        Sp = so - refProp.getTD(RP, hpy, py)['s'] #  [kJ/kg/K]
+        dp = Dpy - self.fluid.getTD( hpy, py)['D']
+        Sp = so - self.fluid.getTD( hpy, py)['s'] #  [kJ/kg/K]
         masssec = massFlowSecond - Dsy * vsy * Asy / 10.0  # this line is in [ g/s], Asy is in cm^2
         ens = hst - hsy - math.pow(vsy, 2.0) / 2.0 * 1e-3 # kJ/kg
-        ds = Dsy - refProp.getTD(RP, hsy, py)['D']
-        Ss = sst - refProp.getTD(RP, hsy, py)['s']
+        ds = Dsy - self.fluid.getTD( hsy, py)['D']
+        Ss = sst - self.fluid.getTD( hsy, py)['s']
         dA = Am - Asy - Apy # [cm^3]
-        dc = vsy - refProp.getSpeedSound(RP, hsy, py) # [m/s]
+        dc = vsy - self.fluid.getSpeedSound( hsy, py) # [m/s]
         out = [massp, enp, dp, Sp, masssec, ens, ds, Ss, dA, dc]
         return out
 
@@ -133,17 +132,16 @@ class EjectorMixer(FlowSolver) :
         :return: a vector of size 10 that should be solved for root
         """
         # TODO: check dimensions
-        RP = self.RP
         [massFlowPrim, ho, vo, so, hst, sst, Am] = parameters
         [py, vpy, hpy, Dpy, Apy, vsy, hsy, Dsy, Asy ] = variables
         massp = massFlowPrim - Dpy * vpy * Apy / 10.0  # [ g/s] Apy in cm^2
         enp = ho + math.pow(vo, 2.0) / 2.0 * 1e-3 - hpy - math.pow(vpy, 2.0) / 2.0 * 1e-3  # kJ/kg
-        dp = Dpy - refProp.getTD(RP, hpy, py)['D']
-        Sp = so - refProp.getTD(RP, hpy, py)['s'] #  [kJ/kg/K]
+        dp = Dpy - self.fluid.getTD( hpy, py)['D']
+        Sp = so - self.fluid.getTD( hpy, py)['s'] #  [kJ/kg/K]
         masssec = massFlowSecond - Dsy * vsy * Asy / 10.0  # this line is in [ g/s], Asy is in cm^2
         ens = hst - hsy - math.pow(vsy, 2.0) / 2.0 * 1e-3 # kJ/kg
-        ds = Dsy - refProp.getTD(RP, hsy, py)['D']
-        Ss = sst - refProp.getTD(RP, hsy, py)['s']
+        ds = Dsy - self.fluid.getTD( hsy, py)['D']
+        Ss = sst - self.fluid.getTD( hsy, py)['s']
         dA = Am - Asy - Apy # [cm^3]
         ## No condition for the suction speed by y, no choking occurs.
         ## dc = vsy - refProp.getSpeedSound(RP, hsy, py) # [m/s]
@@ -178,24 +176,22 @@ class EjectorMixer(FlowSolver) :
         :return: a vector of size 10 that should be solved for root
         """
         # TODO: check dimensions
-        RP = self.RP # Nist Refprop object
         # [massFlowPrim, ho, vo, so, hst, sst, Am] = parameters
         [py, vpy, hpy, Dpy, Apy, vsy, hsy, Dsy, massFlowSecond ] = variables
         Asy = pars['Am'] - Apy # [cm^2] the cross section of the secondary flow
         massp = pars['massFlowPrim'] - Dpy * vpy * Apy / 10.0  # [ g/s] Apy in cm^2
         enp = pars['ho'] + math.pow(pars['vo'], 2.0) / 2.0 * 1e-3 - hpy - math.pow(vpy, 2.0) / 2.0 * 1e-3  # kJ/kg enthalpy primary
-        dp = Dpy - refProp.getTD(RP, hpy, py)['D'] # density primary at Y
-        Sp = pars['so'] - refProp.getTD(RP, hpy, py)['s'] #  [kJ/kg/K] entropy primary
+        dp = Dpy - self.fluid.getTD( hpy, py)['D'] # density primary at Y
+        Sp = pars['so'] - self.fluid.getTD( hpy, py)['s'] #  [kJ/kg/K] entropy primary
         masssec = massFlowSecond - Dsy * vsy * Asy / 10.0  # this line is in [ g/s], Asy is in cm^2
         if False: # self.momCalcType == 0: # neglect the secondary inlet speed
             ens = pars['hsi'] - hsy - math.pow(vsy, 2.0) / 2.0 * 1e-3 # kJ/kg enthalpy suction flow at Y
         else:
             ens = pars['hsi'] + (Dsy * Asy * vsy / pars['Dsi'] / pars['Asi'])** 2.0 / 2.0 * 1.e-3 - hsy - math.pow(vsy, 2.0) / 2.0 * 1e-3  # kJ/kg enthalpy suction flow at Y
-        ds = Dsy - refProp.getTD(RP, hsy, py)['D']
-        Ss = pars['sst'] - refProp.getTD(RP, hsy, py)['s'] # entropy suction flow
+        ds = Dsy - self.fluid.getTD( hsy, py)['D']
+        Ss = pars['sst'] - self.fluid.getTD( hsy, py)['s'] # entropy suction flow
         # dA = pars['Am'] - Asy - Apy # [cm^2] the cross section are equation
         ## No condition for the suction speed by y, no choking occurs.
-        ## dc = vsy - refProp.getSpeedSound(RP, hsy, py) # [m/s]
         if self.momCalcType== 0:
             # the original momentum equation for the suction flow
             dMomS = 0.5 * (pars['Dsi'] * pars['Asi'] + Dsy * Asy) * \
@@ -242,14 +238,13 @@ class EjectorMixer(FlowSolver) :
         | massFlowSecond: secondary mass flow rate
         :return: a vector of size 2 that should be solved for root: secondary energy, and momentum equations
         """
-        RP = self.RP # Nist Refprop object
         # [massFlowPrim, ho, vo, so, hst, sst, Am] = parameters
         # [py, vpy, hpy, Dpy, Apy, vsy, hsy, Dsy, massFlowSecond ] = variables
         [py, massFlowSecond] = variables
-        prim_Y = refProp.get_from_PS(RP, py , pars['sp']) # motive nozzle at Y cross section
+        prim_Y = self.fluid.get_from_PS( py , pars['sp']) # motive nozzle at Y cross section
         hpy = prim_Y["h"]
         Dpy = prim_Y["D"]
-        sec_Y = refProp.get_from_PS(RP, py , pars['sst']) #suction nozzle
+        sec_Y = self.fluid.get_from_PS( py , pars['sst']) #suction nozzle
         Dsy = sec_Y["D"]
         hsy = sec_Y["h"]
         ##from the energy equation:
@@ -292,7 +287,7 @@ class EjectorMixer(FlowSolver) :
             I1 = 0.5 * (1.0/Dsy + 1.0/pars['Dsi']) * dp # values on the edge
             ## evaluate Density in the mid-points
             phvals = [ ( pars['psi'] + i/N * (py - pars['psi']) , pars['hsi']+ i/N* (hsy - pars['hsi']) ) for i in  range(1,N) ]
-            Dinvs = np.array([ 1.0 / refProp.getTD(self.RP, hm = ph[1], P = ph[0])['D'] for ph in  phvals])
+            Dinvs = np.array([ 1.0 / self.fluid.getTD( hm = ph[1], P = ph[0])['D'] for ph in  phvals])
             I2 = Dinvs.sum() * dp
             integral = (I1 + I2)
         return integral
@@ -315,7 +310,7 @@ class EjectorMixer(FlowSolver) :
         :return:
         """
         [massFlowPrim, ho, vo, so, hst, sst, Am] = params
-        fluido = refProp.getTD(self.RP, ho, po)  # fluid properties by Nozzle exit
+        fluido = self.fluid.getTD( ho, po)  # fluid properties by Nozzle exit
         Dinit = fluido['D']
         if self.singleChoke and  hasattr(self,  'massFlowSecond'): # secondary mass flow rate is passed as known parameter
             print(f"suction mass flow rate {self.massFlowSecond} g/s is used for pre-mix calculations" )
@@ -361,14 +356,14 @@ class EjectorMixer(FlowSolver) :
         """
         #[massFlowPrim, ho, vo, so, hst, sst, Am] = params
         #[massFlowPrim, ho, vo, so, ps,Ts, Am, Asi] = params
-        [Dsi, hsi] = refProp.getDh_from_TP(self.RP, params['Tsi'], params['psi'])
+        [Dsi, hsi] = self.fluid.getDh_from_TP( params['Tsi'], params['psi'])
         params["sp"] = params["so"]
         params["Dsi"] = Dsi
         params["hsi"] = hsi
         params["hst"] = hsi # if inlet speed is low, the stagnation enthlpy is approximated by the inlet enthalpy
-        suctionProps = refProp.getTD(self.RP, hsi, params['psi'])
+        suctionProps = self.fluid.getTD( hsi, params['psi'])
         params["sst"] = suctionProps["s"]
-        fluido = refProp.getTD(self.RP, params["ho"], po)  # fluid properties by Nozzle exit
+        fluido = self.fluid.getTD( params["ho"], po)  # fluid properties by Nozzle exit
         Dinit = fluido['D']
         params['Asi'] = self.ejector.Asi
 
@@ -412,10 +407,10 @@ class EjectorMixer(FlowSolver) :
         # [py, vpy, hpy, Dpy, Apy, vsy, hsy, Dsy, Asy, massFlowSecond] = variables
         if self.premixEqSimple:
             [py, massFlowSecond] = premix.x
-            prim_Y = refProp.get_from_PS(self.RP, py, params['sp'])  # motive nozzle at Y cross section
+            prim_Y = self.fluid.get_from_PS( py, params['sp'])  # motive nozzle at Y cross section
             hpy = prim_Y["h"]
             Dpy = prim_Y["D"]
-            sec_Y = refProp.get_from_PS(self.RP, py, params['sst'])  # suction nozzle
+            sec_Y = self.fluid.get_from_PS( py, params['sst'])  # suction nozzle
             Dsy = sec_Y["D"]
             hsy = sec_Y["h"]
             ##from the energy equation:
@@ -457,19 +452,18 @@ class EjectorMixer(FlowSolver) :
         :param Psuc: suction nozzle input pressure
         :param Tsuc: suction nozzle input temperature
         :param ejector: Ejector geometry object
-        :param RP: Nist RefPRop object
         :return: A dictionary with flow parameters at the pre-mix end
         """
-        RP = self.RP
+        # RP = self.RP
         nozzle = self.ejector.nozzle
         print('critical flow nozzle outlet quantities')
         print(res_crit.tail(1).transpose())
         nozzle_out = res_crit.tail(1).to_dict('records')[0]
-        so = refProp.getTD(RP, nozzle_out['h'], nozzle_out['p'])['s']
+        so = self.fluid.getTD( nozzle_out['h'], nozzle_out['p'])['s']
         vo = nozzle_out['v']
         massFlowPrim = vo * nozzle_out['d'] * nozzle.Ao * 1e-4 * 1e3 # [g/sec]
-        [Ds, hst] = refProp.getDh_from_TP(RP, Tsuc, Psuc)
-        prop = refProp.getTD(RP, hst, Psuc)
+        [Ds, hst] = self.fluid.getDh_from_TP( Tsuc, Psuc)
+        prop = self.fluid.getTD( hst, Psuc)
         sst = prop['s']
         logging.info(f"suction flow by inlet Dens {Ds} g/l, quality {prop['q']}")
         if self.singleChoke and not hasattr( self, 'massFlowSecond'):
@@ -520,13 +514,13 @@ class EjectorMixer(FlowSolver) :
             hfac = 1.e3 # factor to bring enthalpy to SI
             pSI,hpSI,hsSI,ApSI,AsSI = [p*1.e3, hpk*1.e3, hsk*1.e3,Ap*1.e-4,As*1.e-4] # in SI units
             eMat = np.zeros((7,7))
-            Dp = refProp.getTD(self.RP, hpk, p)['D']
-            Ds = refProp.getTD(self.RP, hsk, p)['D']
+            Dp = self.fluid.getTD( hpk, p)['D']
+            Ds = self.fluid.getTD( hsk, p)['D']
             eps = 0.01
-            dDdhp = (refProp.getTD(self.RP, hpk + eps, p)['D'] - Dp) / eps / 1000. # hp was in kJ/kg
-            dDdhs = (refProp.getTD(self.RP, hsk + eps, p)['D'] - Ds) / eps / 1000.
-            dDdpp = (refProp.getTD(self.RP, hpk, p + eps)['D'] - Dp) / eps / 1000.
-            dDdps = (refProp.getTD(self.RP, hsk, p + eps)['D'] - Ds) / eps / 1000.
+            dDdhp = (self.fluid.getTD( hpk + eps, p)['D'] - Dp) / eps / 1000. # hp was in kJ/kg
+            dDdhs = (self.fluid.getTD( hsk + eps, p)['D'] - Ds) / eps / 1000.
+            dDdpp = (self.fluid.getTD( hpk, p + eps)['D'] - Dp) / eps / 1000.
+            dDdps = (self.fluid.getTD( hsk, p + eps)['D'] - Ds) / eps / 1000.
             # eMat is the matrix of the linear equation system
             # mass conservation equations TODO: take care of units! hfac is used to
             eMat[0,:] = [1/Dp * dDdpp, 1/vp , 0.0, 1./Dp * dDdhp , 0.0, 1/Ap, 0.0 ]
@@ -628,8 +622,8 @@ class EjectorMixer(FlowSolver) :
         ## Mach numbers :
         plt.subplot(313)
         plt.plot(solNozzle['x'], solNozzle['mach'])
-        cPrim = [refProp.getSpeedSound(self.RP, solMix.iloc[i]['hp'], solMix.iloc[i]['p']) for i in range(solMix.__len__())]
-        cSec = [refProp.getSpeedSound(self.RP, solMix.iloc[i]['hs'], solMix.iloc[i]['p']) for i in
+        cPrim = [self.fluid.getSpeedSound( solMix.iloc[i]['hp'], solMix.iloc[i]['p']) for i in range(solMix.__len__())]
+        cSec = [self.fluid.getSpeedSound( solMix.iloc[i]['hs'], solMix.iloc[i]['p']) for i in
                 range(solMix.__len__())]
         plt.plot(solMix['x'], solMix['vp'] / cPrim )
         plt.plot(solMix['x'], solMix['vs'] / cSec)
@@ -670,8 +664,8 @@ class EjectorMixer(FlowSolver) :
         shockUpStream = solNoShock[ solNoShock['x'] < x_sh]
         #secondpart = self.solveMix()
         [pU, vpU, vsU, hpU, hsU, Ap, As]  = q_upstream[['p', 'vp', 'vs', 'hp', 'hs', 'Ap', 'As']]
-        DpU = refProp.getTD(self.RP, hpU, pU)['D']
-        DsU = refProp.getTD(self.RP, hsU, pU)['D']
+        DpU = self.fluid.getTD( hpU, pU)['D']
+        DsU = self.fluid.getTD( hsU, pU)['D']
         if(mergeflows) :
             ##  calculate mass flow rate, p, and h
             totA = Ap + As
@@ -770,14 +764,14 @@ class EjectorMixer(FlowSolver) :
         :param massFlSuc: mass flow rate of the suction nozzle in kg/sec
         :return: efficiency ratio
         """
-        [DinMn, hinMn]  = refProp.getDh_from_TP(self.RP, TMnIn, pMnIn)
-        sInMn = refProp.getTD(self.RP, hinMn, pMnIn)['s']
+        [DinMn, hinMn]  = self.fluid.getDh_from_TP( TMnIn, pMnIn)
+        sInMn = self.fluid.getTD( hinMn, pMnIn)['s']
 
-        [DinSuc, hinSuc] = refProp.getDh_from_TP(self.RP, TSucIn, pSucIn)
-        sInSuc = refProp.getTD(self.RP, hinSuc, pSucIn)['s']
+        [DinSuc, hinSuc] = self.fluid.getDh_from_TP( TSucIn, pSucIn)
+        sInSuc = self.fluid.getTD( hinSuc, pSucIn)['s']
 
-        hMnIsentrop = refProp.get_from_PS(self.RP, pdiffOut, sInMn)['h']
-        hSucIsentrop = refProp.get_from_PS(self.RP, pdiffOut, sInSuc)['h']
+        hMnIsentrop = self.fluid.get_from_PS( pdiffOut, sInMn)['h']
+        hSucIsentrop = self.fluid.get_from_PS( pdiffOut, sInSuc)['h']
 
         suctionWork = massFlSuc * (hSucIsentrop - hinSuc)
         maxPotential = massFlMn * (hinMn - hMnIsentrop )

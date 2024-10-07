@@ -20,27 +20,29 @@ logging.basicConfig(stream = sys.stdout, level = logging.INFO)
 import matplotlib.pyplot as plt
 import pandas as pd
 from simpy_ejector.useCases import ejectorSimulator
-from simpy_ejector import refProp
+from simpy_ejector import refprop_material, materialFactory
 
 # load Refprop for your fluid:
-fluid = "R1233zd"
-RP = refProp.setup(fluid)
+fluid = "R1233zde"
+# RP = refProp.setup(fluid)
+# RProps = refprop_material.MaterialProperties(fluid)
+RProps = materialFactory.MaterialPropertiesFactory.create( material = fluid, library='refprop' )
 
 # set up geometry parameters:
 params = { "Rin": 1.5, "Rt": 0.29, "Rout": 0.87, "gamma_conv": 15.0, "gamma_div" : 6.0, "Dmix": 2.67,
            "Pprim": 2007, "hprim" : 365.5, "hsuc": 437.1, "Psuc" : 276.3 , "A_suction_inlet" : 16 ,
            "mixerLen": 12 , "gamma_diffusor": 2.5, "diffuserLen": 10}
 ## calculate Temperatures from specific enthalpy with Refprop:
-primQ = refProp.getTD(RP, hm= params["hprim"], P=params["Pprim"] )
+primQ = RProps.getTD( hm= params["hprim"], P=params["Pprim"] )
 params["Tprim"] = primQ['T']
-params["Tsuc"] = refProp.getTD(RP, hm= params["hsuc"], P=params["Psuc"] )['T']
+params["Tsuc"] = RProps.getTD( hm= params["hsuc"], P=params["Psuc"] )['T']
 
 # set parameters of the mixing calculations:
 params["mixingParams"] = {'massExchangeFactor': 2.e-4, 'dragFactor': 0.01, 'frictionInterface': 0.0,
                         'frictionWall': 0.0015}
 
 # create a simulator object:
-esim = ejectorSimulator.ejectorSimu(params)
+esim = ejectorSimulator.ejectorSimu(params, fluid = "R1233zde", proplibrary= "refprop")
 # plot the ejector geometry:
 ejplot = esim.ejector.draw()
 ## calculate the primary mass flow rate:
@@ -65,3 +67,5 @@ print(f"Ejector outlet specific enthalpy {round(average_h,3)} kJ/kg, pressure {r
 
 esim.plotMixSolution(res_crit, esim.solMix, "simpy_ejector 1D Ejector flow solution")
 
+efficiency = esim.calcEfficiency()
+print(f"Elbel Efficiency = {efficiency}")

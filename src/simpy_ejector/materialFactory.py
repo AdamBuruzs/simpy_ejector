@@ -2,7 +2,6 @@
 ## it is creating material properties instance with either refprop, or coolprop
 
 
-
 class MaterialPropertiesFactory:
     @staticmethod
     def create( material, library='auto'):

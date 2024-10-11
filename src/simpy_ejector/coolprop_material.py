@@ -29,17 +29,18 @@ class CoolpropProperties(MaterialProperties):
         try:
             speedsound = PropsSI('SPEED_OF_SOUND','H', hm*1e3, 'P', P*1e3, self.material)
         except:
-            logging.error(f"coolprop: {sys.exc_info()}")
+            logging.debug(f"coolprop: {sys.exc_info()}")
             speedsound = None
         specEntropy = PropsSI('SMASS', 'H', hm * 1e3, 'P', P * 1e3, self.material)
         return {"T": Temp, "D": dens, "q": quality, "c": speedsound, "s": specEntropy}
 
 
 
-    def getDh_from_TP(self, RP, T, p, ):
+    def getDh_from_TP(self, T, p, ):
         ''' get Density and specific enthalpy [kJ/kg] from Temperature and pressure
         be careful, when you use it in two phase region (partly melt)
         :param p: pressure in kPa!
+        :param T: Temperature [Kelvin]
         :return : [Density in kg/m^3, spec enthalpy in kJ/kg]
         '''
         dens = PropsSI('D', 'T', T, 'P', p * 1e3, self.material)
@@ -47,10 +48,9 @@ class CoolpropProperties(MaterialProperties):
         return [dens, enth]
 
 
-    def get_from_PS(self, RP, p, s):
+    def get_from_PS(self, p, s):
         """Get quantities from pressure and specific etropy
 
-        :param RP:
         :param p:
         :param s: specific entropy [kJ/kg/K]
         :return: dict with "T" : Temp [K], "D": density [kg/m^3] , "h" : spec enthalpy [kJ/kg]
@@ -87,6 +87,7 @@ class CoolpropProperties(MaterialProperties):
         if res0['c'] is not None:
             return res0['c']
         else:  # the media is 2 phase, calculate the quality (mass ratio first)
+            logging.debug("simpy_ejector: calculate speed of sound from liquid and gas averaging formula ")
             q = res0['q']  # gas mass ratio (x)
             T = res0['T']  # temperature
             hvap = PropsSI('H','T',T ,'Q',1,self.material)

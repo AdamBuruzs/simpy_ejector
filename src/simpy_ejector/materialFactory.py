@@ -3,8 +3,11 @@
 
 
 class MaterialPropertiesFactory:
+    """General material properties class """
     @staticmethod
     def create( material, library='auto'):
+        """
+        :param library: the material properties library to be used: 'refprop' or 'coolprop' """
         refprop_available = False
         coolprop_available = False
 

@@ -22,7 +22,7 @@ logging.basicConfig(stream = sys.stdout, level = logging.INFO)
 #sys.path.append("C:/Users/BuruzsA/PycharmProjects/")
 #sys.path.append("C:/Users/BuruzsA/PycharmProjects/flows1d") ## this is not needed, if the package is installed in jupyter
 from simpy_ejector.materialFactory import MaterialPropertiesFactory
-from simpy_ejector import nozzleFactory, NozzleParams, nozzleSolver, EjectorGeom, refProp, EjectorMixer
+from simpy_ejector import nozzleFactory, NozzleParams, nozzleSolver, EjectorGeom, EjectorMixer
 
 
 import numpy as np
@@ -83,12 +83,17 @@ class ejectorSimu:
         Rin = params["Rin"]  # cm
         Rt = params["Rt"]  # 0.22
         Rout = params["Rout"]
-        gamma_conv = params["gamma_conv"]  # grad
-        gamma_div = params["gamma_div"]  # grad
         Dmix = params["Dmix"]
-        Lcon = (Rin - Rt) / math.tan(gamma_conv * math.pi / 180)
-        logging.info(f"Primary nozzle: inlet Radius {Rin} cm,\n Throat radius {Rt} cm \n convergent lenght {Lcon} cm")
-        Ldiv = (Rout - Rt) / math.tan(gamma_div * math.pi / 180)
+        if ("gamma_conv" in params) and ("gamma_div" in params):
+            # calculate convergend and divergent part lengths from the angles
+            gamma_conv = params["gamma_conv"]  # grad
+            gamma_div = params["gamma_div"]  # grad
+            Lcon = (Rin - Rt) / math.tan(gamma_conv * math.pi / 180)
+            logging.info(f"Primary nozzle: inlet Radius {Rin} cm,\n Throat radius {Rt} cm \n convergent lenght {Lcon} cm")
+            Ldiv = (Rout - Rt) / math.tan(gamma_div * math.pi / 180)
+        else :
+            Lcon = params["Lcon"]
+            Ldiv = params["Ldiv"]
         logging.info(f"Primary nozzle: Outlet Radius {Rout} cm,\n divergent length {Ldiv}")
         nozzle = nozzleFactory.ConicConic(Rin=Rin, Lcon=Lcon, Rt=Rt, Ldiv=Ldiv, Rout=Rout)
         logging.info(

@@ -27,7 +27,7 @@ import time
 import scipy.optimize
 import scipy.integrate
 from simpy_ejector.flowSolver import FlowSolver
-from simpy_ejector import NozzleParams, numSolvers, refProp
+from simpy_ejector import NozzleParams, numSolvers #, refProp
 import logging
 
 pd.set_option('display.expand_frame_repr', False)

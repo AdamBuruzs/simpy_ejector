@@ -249,6 +249,18 @@ class ejectorSimu:
                              massFlSuc= self.massFlowSec )
         return eff
 
+    def calcPrimNozzleEfficiency(self ):
+        """ Calculate the primary nozzle isentropic efficiency
+
+        :return: ( h_{MN,in} - h_{MN,out} ) /(  h_{MN,in} - h_{MN,out,isentropic} )
+        """
+        # self.primNozzleFlow
+        sInMn = self.fluid.getTD(self.primNozzleFlow.iloc[0]['h'], self.primNozzleFlow.iloc[0]['p'] )['s']
+        d_h_real = self.primNozzleFlow.iloc[0]['h'] - self.primNozzleFlow.iloc[-1]['h']
+        hMnIsentropic = self.fluid.get_from_PS( self.primNozzleFlow.iloc[-1]['p'], sInMn)['h']
+        d_h_isentropic = self.primNozzleFlow.iloc[0]['h'] - hMnIsentropic
+        eta_motive = d_h_real / d_h_isentropic
+        return eta_motive
 
     def plotMixSolution(self, solNozzle, solMix, title = "" ):
         """ Plot the results of solveMix function

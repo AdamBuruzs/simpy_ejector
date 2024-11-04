@@ -723,7 +723,7 @@ class NozzleSolver(FlowSolver):
 
 
 if __name__ == '__main__':
-    from flows1d.core import EjectorGeom, numSolvers, nozzleFactory, refProp
+    from simpy_ejector import EjectorGeom, numSolvers, nozzleFactory, refProp
 
     nozzle = nozzleFactory.ConicConic(1.0, 2.905, 0.2215, 1.4116, 0.345)
     nozzle.setFriction(1.0e-2)

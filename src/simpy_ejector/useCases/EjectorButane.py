@@ -23,13 +23,15 @@ import matplotlib.pyplot as plt
 import pandas as pd
 # sys.path.append("../..")
 from simpy_ejector.useCases import ejectorSimulator
-from simpy_ejector import refprop_material, materialFactory
+from simpy_ejector import  materialFactory
 
 # load Refprop for your fluid:
 fluid = "Butane"
+
+proplibrary = "refprop" # or "coolprop"
 # RP = refProp.setup(fluid)
 # RProps = refprop_material.MaterialProperties(fluid)
-RProps = materialFactory.MaterialPropertiesFactory.create(material=fluid, library='coolprop')
+RProps = materialFactory.MaterialPropertiesFactory.create(material=fluid, library=proplibrary)
 
 # # set up geometry and flow state input parameters:
 # nozzle = nozzleFactory.ConicConic(Rin=1.0, Lcon=2.905, Rt=0.2215, Ldiv=1.4116, Rout=0.345)
@@ -74,7 +76,7 @@ params["mixingParams"] = {'massExchangeFactor': 1.e-4, 'dragFactor': 0.003, 'fri
                           'frictionWall': 0.015}
 
 # create a simulator object:
-esim = ejectorSimulator.ejectorSimu(params, fluid=fluid, proplibrary="coolprop")
+esim = ejectorSimulator.ejectorSimu(params, fluid=fluid, proplibrary = proplibrary)
 # plot the ejector geometry:
 ejplot = esim.ejector.draw()
 ## calculate the primary mass flow rate:
@@ -180,3 +182,6 @@ pressureExp = pd.DataFrame( {'x': [ 5.5, 11.1, 16.7, 29.3, 41.9],
                               'p' : [ 404.4, 461.7, 520.2, 579.2, 584.5]})
 
 specPlotSolution( esim, "single choking mode",  False, pressureExp)
+
+eta_primnozzle = esim.calcPrimNozzleEfficiency()
+print(f"primary nozzle isentropic efficiency = {eta_primnozzle}")

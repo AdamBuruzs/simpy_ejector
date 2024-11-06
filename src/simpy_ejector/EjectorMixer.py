@@ -41,7 +41,8 @@ class EjectorMixer(FlowSolver) :
         self.setAreaDeriv(ejector.mixerdAdx, ejector.mixerArea)
         self.massFlowSecond = None
         self.singleChoke = True
-        self.momCalcType = 0 # there will be 3 types of momentum equation implemented to calculate the suction mass flow.
+        self.momCalcType = 1 # there will be 3 types of momentum equation implemented to calculate the suction mass flow.
+        ## TODO: implement simple Bernoulli equation as momentum equation
         self.Nint = 10 # number of integration intervals, only used if momCalcType == 2
         self.premixEqSimple = False
         self.premixRootMethod = "lm" # the root finder method for the suction mass flow rate calculations.
@@ -752,22 +753,24 @@ class EjectorMixer(FlowSolver) :
             xshock = numSolvers.findMaxTrue(self.ejector.mixerStart, transformer, condition, tol)
             return {"message": message, "shockPos": xshock, "pmin": pmin, "pLastShock" : pSh, "pmax" : pmax }
 
-    def calcEfficiency(self, pMnIn, TMnIn, pSucIn, TSucIn, pdiffOut, massFlMn, massFlSuc ):
+        # TODO: don't use the temperature but the specific enthalpy for the inlet conditions.
+        # This will make a difference by 2 phase inputs (vapor quality >0 by the inlet)
+    def calcEfficiency(self, pMnIn, hinMn, pSucIn, hinSuc, pdiffOut, massFlMn, massFlSuc ):
         """ Calculate the Ejector efficiency formula according to Elbel,Hrnjak 2008.
 
         :param pMnIn: motive nozzle inlet pressure
-        :param TMnIn: motive nozzle inlet temperature
+        :param hinMn: motive nozzle inlet specific enthalpy
         :param pSucIn: suction nozzle inlet pressure
-        :param TSucIn: suction nozzle inlet temperature
+        :param hinSuc: suction nozzle inlet specific enthalpy
         :param pdiffOut: diffuser outlet pressure
         :param massFlMn: mass flow rate of the motive nozzle in kg/sec
         :param massFlSuc: mass flow rate of the suction nozzle in kg/sec
         :return: efficiency ratio
         """
-        [DinMn, hinMn]  = self.fluid.getDh_from_TP( TMnIn, pMnIn)
+        # [DinMn, hinMn]  = self.fluid.getDh_from_TP( TMnIn, pMnIn)
         sInMn = self.fluid.getTD( hinMn, pMnIn)['s']
 
-        [DinSuc, hinSuc] = self.fluid.getDh_from_TP( TSucIn, pSucIn)
+        # [DinSuc, hinSuc] = self.fluid.getDh_from_TP( TSucIn, pSucIn)
         sInSuc = self.fluid.getTD( hinSuc, pSucIn)['s']
 
         hMnIsentrop = self.fluid.get_from_PS( pdiffOut, sInMn)['h']
@@ -776,8 +779,8 @@ class EjectorMixer(FlowSolver) :
         suctionWork = massFlSuc * (hSucIsentrop - hinSuc)
         maxPotential = massFlMn * (hinMn - hMnIsentrop )
 
-        print(" Expansion work recovered : {} Watt. \n "
-              " max expansion work recovery potential {} Watt".format(suctionWork, maxPotential))
+        print(f" Expansion work recovered : {suctionWork:.5f} Watt. \n "
+              f" max expansion work recovery potential {maxPotential:.5f} Watt")
 
         efficiency = suctionWork / maxPotential
         return efficiency

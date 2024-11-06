@@ -127,14 +127,15 @@ class ejectorSimu:
         # self.nsolver.setFriction(1e-2)
 
         # RP = refProp.setup(self.fluid)
-        [Din, hin] = self.fluid.getDh_from_TP( self.params['Tprim'], self.params['Pprim'])
+        # this is not good if quality > 0 by entry:
+        # [Din, hin] = self.fluid.getDh_from_TP( self.params['Tprim'], self.params['Pprim'])
 
-        vin_crit = self.nsolver.calcCriticalSpeed( self.params['Pprim'], hin, 0.1, maxdev=1e-3, chokePos="divergent_part")
+        vin_crit = self.nsolver.calcCriticalSpeed( self.params['Pprim'], self.params['hprim'], 0.1, maxdev=1e-3, chokePos="divergent_part")
 
-        nozzle_crit0 = self.nsolver.solveNplot(vin_crit, self.params['Pprim'], hin, doPlot=False)
+        nozzle_crit0 = self.nsolver.solveNplot(vin_crit, self.params['Pprim'],  self.params['hprim'], doPlot=False)
 
         logging.info(f"calculated critical choking inlet speed = {round(vin_crit, 5)} m/s")
-        mass_flow_crit = vin_crit * self.fluid.getTD( hin, self.params['Pprim'])['D'] * self.nsolver.nozzle.Aprofile(0) * 1e-4
+        mass_flow_crit = vin_crit * self.fluid.getTD(  self.params['hprim'], self.params['Pprim'])['D'] * self.nsolver.nozzle.Aprofile(0) * 1e-4
         logging.info(f"critical mass flow is {round(mass_flow_crit, 5)} kg/sec")
         #results = params
         self.params["vin_crit"] = vin_crit
@@ -241,9 +242,9 @@ class ejectorSimu:
     def calcEfficiency(self):
         """Calculate Elbel efficiency """
         eff = self.mixer.calcEfficiency(pMnIn = self.params["Pprim"],
-                             TMnIn = self.params["Tprim"],
+                             hinMn = self.params["hprim"],
                              pSucIn = self.params["Psuc"],
-                             TSucIn = self.params["Tsuc"],
+                             hinSuc = self.params["hsuc"],
                              pdiffOut = self.solMix["p"].values[-1] ,
                              massFlMn = self.massFlowPrim ,
                              massFlSuc= self.massFlowSec )

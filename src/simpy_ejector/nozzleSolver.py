@@ -404,11 +404,11 @@ class NozzleSolver(FlowSolver):
         with kicking the pressure and flow speed at the throat, so to help the supersonic transition in the divergent part
         :param kicks: a dict with the kicks (the flow velocity and pressure is artificially changed in the throat)
         """
-        sol_1 = self.solveAdaptive1DBasic(vin, pin, hin, 0.0, self.nozzle.xt)
+        sol_1 = self.solveAdaptive1DBasic(vin, pin, hin, 0.0, self.nozzle.xt, **kwargs)
         pkick = kicks["p"]
         vkick = kicks["v"]
         vph_throat = sol_1.iloc[-1]
-        logging.debug(f"last values by throat {sol_1.iloc[-1]} \n solving for the rest, with args : {kwargs}")
+        logging.debug(f"-solveKickedNozzle last values by throat {sol_1.iloc[-1]} \n solving for the rest, with args : {kwargs}")
         if solver == "adaptive_implicit":
             sol_2 = self.solveAdaptive1DBasic(vph_throat['v'] + vkick, vph_throat['p'] - pkick, vph_throat['h'],
                                                      self.nozzle.xt, self.nozzle.L, **kwargs)
@@ -477,7 +477,7 @@ class NozzleSolver(FlowSolver):
         print('critical inlet velocity is {} m/s'.format(vin_crit))
         return vin_crit
 
-    def calcCriticalSpeed(self, pin, hin, v0=0.1, maxdev=0.01, chokePos = "throat" ):
+    def calcCriticalSpeed(self, pin, hin, v0=0.1, maxdev=0.01, maxStep = 0.1, chokePos = "throat" ):
         ''' Iteratively calculate at which inlet speed the flow gets supersonic
         :param v0: a low but positive value to start the search from. This should be a subcritical velocity.
         :param maxdev: maximum deviation from the exact solution (stopping tolerance)
@@ -486,19 +486,23 @@ class NozzleSolver(FlowSolver):
         :return: the inlet velocity, where the flow gets supersonic
         '''
         assert chokePos in ["throat", "divergent_part"], "chokePos parameter is one of 'throat' or 'divergent_part' "
+        logging.debug(f"###### START calcCriticalSpeed:")
         t0 = time.time()
         # transformer = lambda vin: self.solve1dNozzle(vin, pin, hin, 0, 0.0)
         if chokePos == "throat":
-            transformer = lambda vin: self.solveAdaptive1DBasic( vin, pin, hin, 0.0, self.nozzle.xt, 0.05, 0.1)
+            transformer = lambda vin: self.solveAdaptive1DBasic( vin, pin, hin, 0.0, self.nozzle.xt, step0 = maxStep/2.0 , maxStep = maxStep )
             noChoking = lambda solres: solres['x'].iloc[-1] == self.nozzle.xt  # integration succeeded till the nozzle throat
         elif chokePos == "divergent_part":
-            transformer = lambda vin: self.solveAdaptive1DBasic( vin, pin, hin, 0.0, self.nozzle.L, 0.05, 0.1)
+            transformer = lambda vin: self.solveAdaptive1DBasic( vin, pin, hin, 0.0, self.nozzle.L, step0 = maxStep/2.0 , maxStep = maxStep )
             noChoking = lambda solres: solres['x'].iloc[-1] == self.nozzle.L  # integration succeeded till the nozzle end
         vin0 = 0.3
         # sol1 = solver.solveAdaptive1D(vin0, pin, hin, 0.0, nozzle.xt)
         vin_crit = numSolvers.findMaxTrue(vin0, transformer, noChoking, tol=maxdev)
         print('critical speed calculation finished in {} sec'.format(round(time.time() - t0, 3)))
         print('critical inlet velocity is {} m/s'.format(vin_crit))
+        if(logging.getLogger().level == logging.DEBUG):
+            crit_solution = self.solveAdaptive1DBasic( vin_crit, pin, hin, 0.0, self.nozzle.L, 0.05, 0.1)
+            logging.debug(f"calcCriticalSpeed: critical solution at end {crit_solution.iloc[-1]}")
         return vin_crit
 
     def calcCriticalPressure_out(self, vin_crit, pin, hin, Nint=1000, vstep=0.01):

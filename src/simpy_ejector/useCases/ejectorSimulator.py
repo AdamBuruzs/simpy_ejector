@@ -42,7 +42,7 @@ class ejectorSimu:
     def __init__(self, params, fluid = "R1233zde", proplibrary= "refprop" ):
         """ ejector simulator object
         :param proplibrary: refprop or coolprop
-        :param fluid: fluid name from refprop see https://pages.nist.gov/REFPROP-docs/#list-of-fluids
+        :param fluid: fluid name from refprop see https://pages.nist.gov/REFPROP-docs/#list-of-fluids or coolprop
         :param params: a dictionary with fields <br>
          "Rin": primary nozzle inlet radius in [cm] ( example 1.1) <br>
          "Rt": primary nozzle throat radius in [cm] ( example 0.29) <br>
@@ -74,6 +74,7 @@ class ejectorSimu:
             Dsuc, hs = self.fluid.getDh_from_TP(params['Tsuc'], params['Psuc'])
             params['hsuc'] = hs
         self.dv_kick = 2.0
+        self.setup_solver() # use the default values, or call after init the setup solver with your parameters!
 
     def makeEjectorGeom(self, params):
         """ create the ejector geometry.
@@ -116,9 +117,10 @@ class ejectorSimu:
         self.nsolver = nozzleSolver.NozzleSolver(nozzle, self.fluid, 1, solver="AdamAdaptive", mode="basic")
         self.nsolver.setFriction(1e-2)
 
-    def calcPrimMassFlow(self):
+    def calcPrimMassFlow(self, plotCrit0 = False, chokePos="divergent_part"):
         """calculate the motive nozzle critical speed and choking mass flow rate
         This function sets the self.nsolver!!
+        :param plotCrit0: plot the last converged (critical) flow? This is maybe still the last subsonic flow.
         """
         self.makeEjectorGeom(self.params)
         nozzle = self.ejector.nozzle
@@ -130,9 +132,10 @@ class ejectorSimu:
         # this is not good if quality > 0 by entry:
         # [Din, hin] = self.fluid.getDh_from_TP( self.params['Tprim'], self.params['Pprim'])
 
-        vin_crit = self.nsolver.calcCriticalSpeed( self.params['Pprim'], self.params['hprim'], 0.1, maxdev=1e-3, chokePos="divergent_part")
+        vin_crit = self.nsolver.calcCriticalSpeed( self.params['Pprim'], self.params['hprim'], v0 = 0.1, maxdev=1e-3,
+                                                   maxStep = 0.05, chokePos="divergent_part")
 
-        nozzle_crit0 = self.nsolver.solveNplot(vin_crit, self.params['Pprim'],  self.params['hprim'], doPlot=False)
+        nozzle_crit0 = self.nsolver.solveNplot(vin_crit, self.params['Pprim'],  self.params['hprim'], doPlot=plotCrit0)
 
         logging.info(f"calculated critical choking inlet speed = {round(vin_crit, 5)} m/s")
         mass_flow_crit = vin_crit * self.fluid.getTD(  self.params['hprim'], self.params['Pprim'])['D'] * self.nsolver.nozzle.Aprofile(0) * 1e-4
@@ -142,6 +145,14 @@ class ejectorSimu:
         self.params["mass_flow_crit"] = mass_flow_crit
         #return ejector,results, nsolver
 
+    def setup_solver(self, step0_mn = 0.001, maxStep_mn = 0.005):
+        """Setting parameters of the solver of the motive nozzle
+        :param step0_mn: initial step size (dx) used for the motive nozzle solution
+        :param maxStep_mn: maximal step size (dx) used for the motive nozzle solution
+        """
+        self.step0_mn = step0_mn
+        self.maxStep_mn = maxStep_mn
+
     def motiveSolver(self):
         """Obtain the motive nozzle solution with kick-helper.
         This kick will help to reach the supersonic flow in the primary nozzle at the throat.
@@ -150,33 +161,36 @@ class ejectorSimu:
         for each x (measured in cm) integration points
         """
         sol_1 = self.nsolver.solveAdaptive1DBasic(self.params["vin_crit"], self.params["Pprim"],
-                                             self.params["hprim"], 0.0, self.nsolver.nozzle.xt)
+                                             self.params["hprim"], 0.0, self.nsolver.nozzle.xt, step0 = self.step0_mn, maxStep = self.maxStep_mn )
         vph_throat = sol_1.iloc[-1]
         v = vph_throat["v"]
         p = vph_throat["p"]
         h = vph_throat["h"]
+        logging.debug(f"critical solution at the throat : {sol_1.iloc[-1]}")
         #dv_kick = 2.0 ## [m/s] increase this value, if the flow does not switch to supersonic after the throat
         dp_kick = self.nsolver.pFromV_MassConst(v = vph_throat["v"], dv = self.dv_kick, p = vph_throat["p"], h = vph_throat["h"])
         logging.info(f"mass conserving artificial kick: dv = {self.dv_kick} m/s, dp = {dp_kick} kPa")
         res_crit = self.nsolver.solveKickedNozzle(self.params["vin_crit"], self.params["Pprim"], self.params["hprim"], kicks = {'v': self.dv_kick, 'p': -dp_kick},
-                                             solver= "adaptive_implicit", step0 = 0.001, maxStep = 0.005)
+                                             solver= "adaptive_implicit", step0 = self.step0_mn, maxStep = self.maxStep_mn )
+        logging.debug(f" dv = {self.dv_kick} res_crit at the end {res_crit.iloc[-1]} ")
         if res_crit.iloc[-1]['v'] < sol_1.iloc[-1]['v']: # the flow did not became supersonic
             logging.info("velocity kick was too low, increasing it and try again")
+            dv_step = 1 # m/sec
             for ii in range(20):
-                self.dv_kick = self.dv_kick +1
+                self.dv_kick = self.dv_kick + dv_step # 1 m/s steps increase of the velocity kick
                 dp_kick = self.nsolver.pFromV_MassConst(v=vph_throat["v"], dv=self.dv_kick, p=vph_throat["p"],
                                                         h=vph_throat["h"])
                 logging.info(f"new guess for mass conserving artificial kick: dv = {self.dv_kick} m/s, dp = {dp_kick} kPa")
                 res_crit = self.nsolver.solveKickedNozzle(self.params["vin_crit"], self.params["Pprim"],
                                                           self.params["hprim"], kicks={'v': self.dv_kick, 'p': -dp_kick},
-                                                          solver="adaptive_implicit", step0=0.001, maxStep=0.005)
+                                                          solver="adaptive_implicit",  step0 = self.step0_mn, maxStep = self.maxStep_mn )
                 logging.info(f"speed throat {sol_1.iloc[-1]['v']:.2f}, outlet {res_crit.iloc[-1]['v']:.2f}")
                 if (res_crit.iloc[-1]['v'] > sol_1.iloc[-1]['v']):
                     break
         logging.info(f"throat by {self.nsolver.nozzle.xt}")
         self.nsolver.plotsol(res_crit, title = f"choked nozzle with friction = {self.nsolver.frictionCoef}.\n "
                                                f"with artifical kick by throat with {self.dv_kick} m/sec ")
-        logging.info(res_crit.tail(1))
+        logging.info(f"-motiveSolver result tail {res_crit.tail(1)}")
         self.primNozzleFlow = res_crit
         return res_crit
 

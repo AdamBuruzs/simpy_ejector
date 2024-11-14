@@ -254,7 +254,7 @@ class FlowSolver(object):
                 return None
 
 
-
+    ## TODO: add posibility to add predefined integration x points (e.g. the nozzle throat)
     def solveAdaptive1DBasic(self, vin, pin, hin, x0, endx, step0 = 0.05, maxStep = 0.1):
         """| solving the vph_equation, vph_update equations step by step
         | using numSolvers.adaptive_implicit solver with adaptive stepsize

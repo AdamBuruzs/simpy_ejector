@@ -3,6 +3,7 @@
 import matplotlib.pyplot as plt
 import math
 import os, numpy as np
+import logging
 
 import pandas as pd
 from simpy_ejector.matprop_gen import MaterialProperties
@@ -68,7 +69,7 @@ class RefpropProperties(MaterialProperties):
         res = self.RP.PSFLSHdll(p, smol, [1.0])
         density = res.D * MM
         hmass = res.h / MM
-        print(' h = {}'.format(res.h))
+        logging.debug('get_from_PS h = {}'.format(res.h))
         return {"T": res.T, "D": density, "h": hmass}
 
     def getTransport(self, T, D):

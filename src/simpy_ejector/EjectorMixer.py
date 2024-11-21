@@ -326,6 +326,10 @@ class EjectorMixer(FlowSolver) :
             eqFun = lambda x: self.premixEquationsDoubleChoked(params, x)
             xinit = [100, vo, ho, Dinit, Am / 2.0, vo / 2.0, ho, Dinit, Am / 2.0, massFlowPrim / 2.0]
             premix = scipy.optimize.root(eqFun, x0=np.array(xinit), method='hybr')
+            if premix.success:
+                self.premixOK = True
+            else:
+                self.premixOK = False
             # [py, vpy, hpy, Dpy, Apy, vsy, hsy, Dsy, Asy, massFlowSecond] = variables
             [py, vpy, hpy, Dpy, Apy, vsy, hsy, Dsy, Asy, massFlowSecond] = premix.x
         else:
@@ -428,7 +432,9 @@ class EjectorMixer(FlowSolver) :
             equation_labels = "[massp, enp, dp, Sp, masssec, ens, ds, Ss, dMomS]"
         if premix.success == False:
             logging.error(f"{premix.message}\n solvePreMixSingleChoke has not converged, try to change xinit initial values, or the parameters of the scipy.optimize.root")
+            self.premixOK = False
         else:
+            self.premixOK = True
             try:
                 logging.info(f"premix calculation finished after {premix.nfev} function evaluations:\n {premix.message}")
             except:

@@ -99,10 +99,18 @@ class ejectorSimu:
         nozzle = nozzleFactory.ConicConic(Rin=Rin, Lcon=Lcon, Rt=Rt, Ldiv=Ldiv, Rout=Rout)
         logging.info(
             f"Primary nozzle: Rin ={Rin}, Rout = {Rout} Lcon = {Lcon}, Rt = {Rt} cm,\n converg Len {round(Lcon, 5)} divergent length {round(Ldiv, 5)} ")
-        nozzle.setFriction(1.0e-3)
+        if "motive_friction" in params:
+            mot_friction = params["motive_friction"]
+        else:
+            mot_friction = 1.0e-3
+        nozzle.setFriction(mot_friction)
 
         ejector = EjectorGeom(nozzle, Dm=params["Dmix"])
-        mixstart = Lcon + Ldiv + 1.1
+        if "dx_mixstart" in params:  # The distance of the Munday-Bagster hypothetical throat from the LAval nozzle end
+            dx_mix = params["dx_mixstart"]
+        else:
+            dx_mix = 1.0 # a fix cm value
+        mixstart = Lcon + Ldiv + dx_mix
         gamma_diffusor = params["gamma_diffusor"]  ## or the half of it??
         diffuserLen = params["diffuserLen"]
         mixerLen = params["mixerLen"]
@@ -115,7 +123,7 @@ class ejectorSimu:
         ### set up the nozzle solver:
         # [Din, hin] = self.fluid.getDh_from_TP(self.params['Tprim'], self.params['Pprim'])
         self.nsolver = nozzleSolver.NozzleSolver(nozzle, self.fluid, 1, solver="AdamAdaptive", mode="basic")
-        self.nsolver.setFriction(1e-2)
+        self.nsolver.setFriction(mot_friction)
 
     def calcPrimMassFlow(self, plotCrit0 = False, chokePos="divergent_part"):
         """calculate the motive nozzle critical speed and choking mass flow rate
@@ -169,10 +177,12 @@ class ejectorSimu:
         logging.debug(f"critical solution at the throat : {sol_1.iloc[-1]}")
         #dv_kick = 2.0 ## [m/s] increase this value, if the flow does not switch to supersonic after the throat
         dp_kick = self.nsolver.pFromV_MassConst(v = vph_throat["v"], dv = self.dv_kick, p = vph_throat["p"], h = vph_throat["h"])
-        logging.info(f"mass conserving artificial kick: dv = {self.dv_kick} m/s, dp = {dp_kick} kPa")
+        logging.info(f"mass conserving artificial kick: dv = {self.dv_kick} m/s, dp = {dp_kick} kPa, throat pressure {p}")
+        if abs(dp_kick) > p:
+            logging.error("pressure kick is too large, reduce esim.dv_kick ! ")
         res_crit = self.nsolver.solveKickedNozzle(self.params["vin_crit"], self.params["Pprim"], self.params["hprim"], kicks = {'v': self.dv_kick, 'p': -dp_kick},
                                              solver= "adaptive_implicit", step0 = self.step0_mn, maxStep = self.maxStep_mn )
-        logging.debug(f" dv = {self.dv_kick} res_crit at the end {res_crit.iloc[-1]} ")
+        logging.debug(f" dv = {self.dv_kick} at throat {self.nsolver.nozzle.xt}. res_crit at the end: \n{res_crit.iloc[-1]} ")
         if res_crit.iloc[-1]['v'] < sol_1.iloc[-1]['v']: # the flow did not became supersonic
             logging.info("velocity kick was too low, increasing it and try again")
             dv_step = 1 # m/sec
@@ -206,6 +216,8 @@ class ejectorSimu:
     def solvePremix(self, res_crit):
         """ just solving the pre-mix equations for secondary mass flow rate"""
         self.mixerin = self.mixer.premixWrapSolve(res_crit, self.params["Psuc"], self.params["Tsuc"])
+        self.massFlowSec = self.mixerin["massFlowSecond"]
+        self.massFlowPrim = self.mixerin["massFlowPrim"]
 
     def premix(self, res_crit):
         """ solving the premix equations. this will calculate the secondary mass flow rate"""
@@ -217,6 +229,8 @@ class ejectorSimu:
         self.mixer.ejector.Asi = self.params["A_suction_inlet"]
 
         self.mixerin = self.mixer.premixWrapSolve(res_crit, self.params["Psuc"], self.params["Tsuc"])
+        self.massFlowSec = self.mixerin["massFlowSecond"]
+        self.massFlowPrim = self.mixerin["massFlowPrim"]
 
     def mixersolve(self):
         """ solve the mixer equations until the end of the ejector"""
@@ -234,8 +248,8 @@ class ejectorSimu:
         logging.info(f"secondary {round(self.diffout['vs'],2)} m/s with vapor q: { round(out_sec['q'],3) }. MFR {round(massFlowSec,3)}")
         logging.info(f"total q {quality_tot}")
         self.outlet_quality = quality_tot
-        self.massFlowPrim = massFlowPrim
-        self.massFlowSec = massFlowSec
+        self.massFlowPrim_dout = massFlowPrim # at diffuser outlet
+        self.massFlowSec_dout = massFlowSec
 
     def massFlowCheck(self):
         """ verify the mass flow conservation. Validate if the sum stays constant in the mixer. This is only used for debugging!

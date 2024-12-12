@@ -481,6 +481,7 @@ class EjectorMixer(FlowSolver) :
             mixres, mixar = self.solvePreMixSingleChoke(parameters, nozzle_out['p']-10.0)
             logging.info("pre-mix calculations with single choking and suction mass flow rate calculation")
         else: # double choking or fixed given secondary mass flow rate
+            logging.info("calculation of premixWrapSolve with double chocked suction nozzle, or fixed suction MFR ")
             parameters = [massFlowPrim, nozzle_out['h'], vo, so, hst, sst, self.ejector.Am]
             # [massFlowPrim, ho, vo, so, hst, sst, Am] = parameters
             print(parameters)

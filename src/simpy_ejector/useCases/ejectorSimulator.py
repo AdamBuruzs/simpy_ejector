@@ -225,6 +225,8 @@ class ejectorSimu:
         self.mixer = EjectorMixer.EjectorMixer(self.fluid, self.ejector, mixingParams)
         self.mixer.setSuctionMassFlow(None)
         self.mixer.setSingleChoke(True)
+        if "premixMomCalcType" in self.params:
+            self.mixer.momCalcType = self.params["premixMomCalcType"]
         #self.mixer.ejector.Asi = 2 * 1.1 ** 2 * math.pi  # cm2 of the suction nozzle inlet.
         self.mixer.ejector.Asi = self.params["A_suction_inlet"]
 

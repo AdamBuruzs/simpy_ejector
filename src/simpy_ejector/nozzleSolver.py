@@ -416,7 +416,7 @@ class NozzleSolver(FlowSolver):
             sol_2 = self.solve1D(vph_throat['v'] + vkick, vph_throat['p'] - pkick, vph_throat['h'],
                                  0, endx=self.nozzle.L, startx=self.nozzle.xt,
                            odesolver="BDF")
-        sol_full = sol_1.append(sol_2.iloc[1:], ignore_index=True)
+        sol_full = pd.concat([sol_1,sol_2.iloc[1:]], ignore_index=True)
         return sol_full
 
     def sonicPoint(self, vin, pin, hin):

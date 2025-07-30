@@ -204,6 +204,17 @@ class ejectorSimu:
         self.primNozzleFlow = res_crit
         return res_crit
 
+    def plotGridPrimNozzle(self):
+        """plot integration grid of the primary nozzle"""
+        fig, ax = plt.subplots(2, 1, sharex=True)
+        ax[0].plot(self.primNozzleFlow["x"], self.primNozzleFlow["x"].diff())
+        ax[0].set_ylabel("grid size [cm]")
+        Rvalues = np.array([self.nsolver.nozzle.Rprofile(xi) for xi in self.primNozzleFlow["x"]])
+        ax[1].plot(self.primNozzleFlow["x"], Rvalues)
+        ax[1].set_ylabel("nozzle radius [cm]")
+        ax[1].set_ylim([0, Rvalues.max()])
+        ax[1].set_xlabel("x [cm]")
+
     def setupMixer(self):
         """ just set up the mixer for the calculations, you can still modify the mixer calculation parameters"""
         mixingParams = self.params["mixingParams"]
@@ -215,9 +226,9 @@ class ejectorSimu:
 
     def solvePremix(self, res_crit):
         """ just solving the pre-mix equations for secondary mass flow rate"""
-        self.mixerin = self.mixer.premixWrapSolve(res_crit, self.params["Psuc"], self.params["Tsuc"])
-        self.massFlowSec = self.mixerin["massFlowSecond"]
-        self.massFlowPrim = self.mixerin["massFlowPrim"]
+        self.mixerin = self.mixer.premixWrapSolve(res_crit, self.params["Psuc"], self.params["Tsuc"], self.params["hsuc"])
+        self.massFlowSec = self.mixerin["massFlowSecond"] # [g/sec]
+        self.massFlowPrim = self.mixerin["massFlowPrim"] # [g/sec]
 
     def premix(self, res_crit):
         """ solving the premix equations. this will calculate the secondary mass flow rate"""
@@ -230,7 +241,7 @@ class ejectorSimu:
         #self.mixer.ejector.Asi = 2 * 1.1 ** 2 * math.pi  # cm2 of the suction nozzle inlet.
         self.mixer.ejector.Asi = self.params["A_suction_inlet"]
 
-        self.mixerin = self.mixer.premixWrapSolve(res_crit, self.params["Psuc"], self.params["Tsuc"])
+        self.mixerin = self.mixer.premixWrapSolve(res_crit, self.params["Psuc"], self.params["Tsuc"], self.params["hsuc"])
         self.massFlowSec = self.mixerin["massFlowSecond"]
         self.massFlowPrim = self.mixerin["massFlowPrim"]
 

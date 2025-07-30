@@ -344,7 +344,7 @@ class EjectorMixer(FlowSolver) :
         """| solve the pre-mix chamber equations numerically in case of single choking inclusive the approximative calculation
         of the secondary mass flow rate
 
-        :param params: dictionary with [massFlowPrim, ho, vo, so, psi, Tsi, Am]
+        :param params: dictionary with [massFlowPrim, ho, vo, so, psi, hsi, Am]
         | massFlowPrim: primary mass flow rate
         | ho: motive nozzle output pressure
         | vo: motive nozzle output velocity
@@ -361,12 +361,13 @@ class EjectorMixer(FlowSolver) :
         """
         #[massFlowPrim, ho, vo, so, hst, sst, Am] = params
         #[massFlowPrim, ho, vo, so, ps,Ts, Am, Asi] = params
-        [Dsi, hsi] = self.fluid.getDh_from_TP( params['Tsi'], params['psi'])
+        # [Dsi, hsi] = self.fluid.getDh_from_TP( params['Tsi'], params['psi'])
+        suctionProps = self.fluid.getTD( params["hsi"], params['psi'])
         params["sp"] = params["so"]
-        params["Dsi"] = Dsi
-        params["hsi"] = hsi
-        params["hst"] = hsi # if inlet speed is low, the stagnation enthlpy is approximated by the inlet enthalpy
-        suctionProps = self.fluid.getTD( hsi, params['psi'])
+        params["Dsi"] = suctionProps["D"]
+        # params["hsi"] = hsi
+        params["hst"] =  params["hsi"] # if inlet speed is low, the stagnation enthlpy is approximated by the inlet enthalpy
+        
         params["sst"] = suctionProps["s"]
         fluido = self.fluid.getTD( params["ho"], po)  # fluid properties by Nozzle exit
         Dinit = fluido['D']
@@ -451,13 +452,14 @@ class EjectorMixer(FlowSolver) :
         return [resdict, premix.x]
 
 
-    def premixWrapSolve(self, res_crit :pd.DataFrame, Psuc, Tsuc):
+    def premixWrapSolve(self, res_crit :pd.DataFrame, Psuc, Tsuc, hsuc):
         """ wrapping the Premix solver, use the nozzle solver output (res_crit) and the Suction nozzle input
         pressure and Temperature, and the Ejector geometry, and calculate the premixing equations.
 
         :param res_crit: critical flow parameters, where the last line is the nozzle outlet values
         :param Psuc: suction nozzle input pressure
         :param Tsuc: suction nozzle input temperature
+        :param hsuc: suction inlet specific enthalpy kJ/kg
         :param ejector: Ejector geometry object
         :return: A dictionary with flow parameters at the pre-mix end
         """
@@ -469,13 +471,19 @@ class EjectorMixer(FlowSolver) :
         so = self.fluid.getTD( nozzle_out['h'], nozzle_out['p'])['s']
         vo = nozzle_out['v']
         massFlowPrim = vo * nozzle_out['d'] * nozzle.Ao * 1e-4 * 1e3 # [g/sec]
-        [Ds, hst] = self.fluid.getDh_from_TP( Tsuc, Psuc)
+        if hsuc is None:
+            [Ds, hst] = self.fluid.getDh_from_TP( Tsuc, Psuc)
+        else :
+            hst = hsuc
+            prop = self.fluid.getTD( hst, Psuc)
+            Tsuc = prop["T"]
+            Ds = prop["D"]    
         prop = self.fluid.getTD( hst, Psuc)
         sst = prop['s']
         logging.info(f"suction flow by inlet Dens {Ds} g/l, quality {prop['q']}")
         if self.singleChoke and not hasattr( self, 'massFlowSecond'):
             logging.info("calculation of single-chocking subcritical mode incl. suction mass flow rate calculations")
-            parameters = { 'Tsi':Tsuc, 'psi': Psuc, 'massFlowPrim': massFlowPrim,
+            parameters = { 'hsi': hst, 'psi': Psuc, 'massFlowPrim': massFlowPrim,
                            'ho': nozzle_out['h'], 'vo' : vo, 'so': so, 'Am':  self.ejector.Am }
             print(parameters)
             mixres, mixar = self.solvePreMixSingleChoke(parameters, nozzle_out['p']-10.0)

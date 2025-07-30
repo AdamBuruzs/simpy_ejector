@@ -19,19 +19,29 @@ import sys
 logging.basicConfig(stream = sys.stdout, level = logging.INFO)
 import matplotlib.pyplot as plt
 import pandas as pd
+
 from simpy_ejector.useCases import ejectorSimulator
-from simpy_ejector import refprop_material, materialFactory
+from simpy_ejector import  materialFactory
 
 # load Refprop for your fluid:
-fluid = "R1233zde"
+#fluid = "R1233zd(E)" # "R1233zde"  
+#proplibrary = "coolprop"
+
+fluid = "R1233zde" # "R1233zde"  
+proplibrary = "refprop"
+
+
 # RP = refProp.setup(fluid)
 # RProps = refprop_material.MaterialProperties(fluid)
-RProps = materialFactory.MaterialPropertiesFactory.create( material = fluid, library='refprop' )
+RProps = materialFactory.MaterialPropertiesFactory.create( material = fluid, library = proplibrary )
 
 # set up geometry parameters:
 params = { "Rin": 1.5, "Rt": 0.29, "Rout": 0.87, "gamma_conv": 15.0, "gamma_div" : 6.0, "Dmix": 2.67,
            "Pprim": 2007, "hprim" : 365.5, "hsuc": 437.1, "Psuc" : 276.3 , "A_suction_inlet" : 16 ,
            "mixerLen": 12 , "gamma_diffusor": 2.5, "diffuserLen": 10}
+
+if proplibrary == "coolprop":
+    params["hsuc"] = 280 ## by R1233zdE refprop and coolprop spec. enthalpy differs! 
 ## calculate Temperatures from specific enthalpy with Refprop:
 primQ = RProps.getTD( hm= params["hprim"], P=params["Pprim"] )
 params["Tprim"] = primQ['T']
@@ -42,7 +52,7 @@ params["mixingParams"] = {'massExchangeFactor': 2.e-4, 'dragFactor': 0.01, 'fric
                         'frictionWall': 0.0015}
 
 # create a simulator object:
-esim = ejectorSimulator.ejectorSimu(params, fluid = "R1233zde", proplibrary= "refprop")
+esim = ejectorSimulator.ejectorSimu(params, fluid = fluid, proplibrary= proplibrary)
 # plot the ejector geometry:
 ejplot = esim.ejector.draw()
 ## calculate the primary mass flow rate:

@@ -21,14 +21,16 @@ import math
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 import matplotlib.pyplot as plt
 import pandas as pd
-# sys.path.append("../..")
+## this path is only needed for testing:
+## sys.path.append("../..")
 from simpy_ejector.useCases import ejectorSimulator
 from simpy_ejector import  materialFactory
 
 # load Refprop for your fluid:
 fluid = "Butane"
 
-proplibrary = "refprop" # or "coolprop"
+# proplibrary = "refprop" # or "coolprop"
+proplibrary = "coolprop"
 # RP = refProp.setup(fluid)
 # RProps = refprop_material.MaterialProperties(fluid)
 RProps = materialFactory.MaterialPropertiesFactory.create(material=fluid, library=proplibrary)
@@ -41,6 +43,7 @@ RProps = materialFactory.MaterialPropertiesFactory.create(material=fluid, librar
 # ejectorPlot = ejector.draw()
 
 ## Butane ejector for heat pump see Schlemminger article
+# (C. Schlemminger et al 2019 DKV-Tagung: Hochtemperatur Wärmepumpe mit Ejektor )
 pin = 2140.0  # kPa  2000
 Tin = 273.15 + 114.0  # Kelvin  380
 Tsuc = 52.7 + 273.15  # suction temperature

@@ -22,7 +22,7 @@ logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 import matplotlib.pyplot as plt
 import pandas as pd
 ## this path is only needed for testing:
-sys.path.append("../..")
+# sys.path.append("../..")
 from simpy_ejector.useCases import ejectorSimulator
 from simpy_ejector import  materialFactory
 

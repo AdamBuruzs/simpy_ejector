@@ -350,7 +350,7 @@ class EjectorMixer(FlowSolver) :
         | vo: motive nozzle output velocity
         | so: motive nozzle output specific entropy
         | psi : suction inlet pressure in kPa
-        | Tsi : suction inlet temperature
+        | hsi : suction inlet spec enthalpy [kJ/kg]
         | hst: suction stagnation specific enthalpy [kJ/kg]
         | sst: suction stagnation specific entropy
         | Am: mixer cross section area [cm^2]

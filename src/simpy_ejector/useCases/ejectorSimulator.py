@@ -174,7 +174,7 @@ class ejectorSimu:
         v = vph_throat["v"]
         p = vph_throat["p"]
         h = vph_throat["h"]
-        logging.debug(f"critical solution at the throat : {sol_1.iloc[-1]}")
+        logging.info(f"critical solution at the throat : {sol_1.iloc[-1]}")
         #dv_kick = 2.0 ## [m/s] increase this value, if the flow does not switch to supersonic after the throat
         dp_kick = self.nsolver.pFromV_MassConst(v = vph_throat["v"], dv = self.dv_kick, p = vph_throat["p"], h = vph_throat["h"])
         logging.info(f"mass conserving artificial kick: dv = {self.dv_kick} m/s, dp = {dp_kick} kPa, throat pressure {p}")
@@ -226,7 +226,7 @@ class ejectorSimu:
 
     def solvePremix(self, res_crit):
         """ just solving the pre-mix equations for secondary mass flow rate"""
-        self.mixerin = self.mixer.premixWrapSolve(res_crit, self.params["Psuc"], self.params["Tsuc"], self.params["hsuc"])
+        self.mixerin = self.mixer.premixWrapSolve(res_crit, self.params["Psuc"], 0.0, self.params["hsuc"])
         self.massFlowSec = self.mixerin["massFlowSecond"] # [g/sec]
         self.massFlowPrim = self.mixerin["massFlowPrim"] # [g/sec]
 
@@ -241,7 +241,7 @@ class ejectorSimu:
         #self.mixer.ejector.Asi = 2 * 1.1 ** 2 * math.pi  # cm2 of the suction nozzle inlet.
         self.mixer.ejector.Asi = self.params["A_suction_inlet"]
 
-        self.mixerin = self.mixer.premixWrapSolve(res_crit, self.params["Psuc"], self.params["Tsuc"], self.params["hsuc"])
+        self.mixerin = self.mixer.premixWrapSolve(res_crit, self.params["Psuc"], 0.0, self.params["hsuc"])
         self.massFlowSec = self.mixerin["massFlowSecond"]
         self.massFlowPrim = self.mixerin["massFlowPrim"]
 

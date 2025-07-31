@@ -102,16 +102,26 @@ from simpy_ejector import  materialFactory
 Then set the fluid (refrigerant), that you want to use in your ejector. For example:
 
 ````
+fluid = "Water"
 proplibrary = "coolprop"
 RProps = materialFactory.MaterialPropertiesFactory.create(material=fluid, library=proplibrary)
 ````
 
+Set the inlet states for the motive and suction nozzle:
+```
+## Example test case for a water ejector
+Pprim = 1000 # kPa  
+Psuc = 300  # suction pressure kPa
+hinPrim = 750 # kJ/kg 
+hinSuc = 2800 # kJ/kg
+````
 Then specify the ejector geometry:
 ```
 # set up geometry parameters, and motive and suction nozzle states:
 params = { "Rin": 1.5, "Rt": 0.29, "Rout": 0.87, "gamma_conv": 15.0, "gamma_div" : 6.0, "Dmix": 2.67,
-           "Pprim": 2007, "hprim" : 365.5, "hsuc": 437.1, "Psuc" : 276.3 , "A_suction_inlet" : 16 ,
+            "A_suction_inlet" : 16 ,
            "mixerLen": 12 , "gamma_diffusor": 2.5, "diffuserLen": 10}
+params.update({"Pprim": 2007, "hprim" : 365.5, "hsuc": 437.1, "Psuc" : 276.3 })
 ```
 
 Use this picture to find the meaning of the parameters: <br>
@@ -146,6 +156,8 @@ params["mixingParams"] = {'massExchangeFactor': 2.e-4, 'dragFactor': 0.01, 'fric
 create a simulator object:
 ```
 esim = ejectorSimulator.ejectorSimu(params, fluid=fluid, proplibrary = proplibrary)
+## a small numerical kick is needed by the motive nozzle to transition into the supersonic flow in the divergent part:
+esim.dv_kick = 0.004 # in m/s
 ```
  plot the ejector geometry:
 ```
@@ -155,7 +167,7 @@ This line will create for you an interactive *matplotlib* plot of your ejector
 
 ```
 ## calculate the primary mass flow rate:
-esim.calcPrimMassFlow()
+esim.calcPrimMassFlow(plotCrit0 = True, chokePos="divergent_part")
 ```
 This will iteratively calculate the critical inlet velocity, where the motive nozzle chokes. The critical speed and mass flow rate will be printed on the standard output
 
